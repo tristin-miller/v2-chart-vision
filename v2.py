@@ -32,7 +32,7 @@ num_patches = (IMG_SIZE // PATCH_SIZE) ** 2
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # ==========================================
-# 1. DATASET (Updated for 3 Classes)
+# 1. DATASET
 # ==========================================
 class StockChartDataset(Dataset):
     def __init__(self, csv_file, img_dir, transform=None):
@@ -137,7 +137,6 @@ class ViT(nn.Module):
         self.position_embedding_table = nn.Embedding(num_patches, n_embd)
         self.blocks = nn.Sequential(*[Block(n_embd, n_head=n_head) for _ in range(n_layer)])
         
-        # --- CHANGE 2: OUTPUT NEURONS SET TO 3 ---
         self.lm_head = nn.Linear(n_embd, 3)
 
     def forward(self, x, targets=None):
@@ -153,17 +152,12 @@ class ViT(nn.Module):
         
         loss = None
         if targets is not None:
-            # --- CHANGE 3: UPDATED CLASS WEIGHTS FOR 3 CLASSES ---
-            # Order: [Down, Hold, Up]
-            # Since you said they are almost perfect thirds, weights should be near 1.0.
             class_weights = torch.tensor([1.11, 1.00, 1.02]).to(x.device)
             loss = F.cross_entropy(logits, targets, weight=class_weights)
 
         return logits, loss
 
-# ==========================================
-# 3. METRICS (Updated for 3 Classes)
-# ==========================================
+
 @torch.no_grad()
 def estimate_metrics(model, train_loader, val_loader):
     model.eval()
@@ -188,9 +182,6 @@ def estimate_metrics(model, train_loader, val_loader):
         val_correct += (pred_class == Y).sum().item()
         val_total += Y.size(0)
         
-        # --- CHANGE 4: UPDATED RANK IC LOGIC ---
-        # We use the probability of Class 2 (UP) as our confidence signal.
-        # Alternatively, use (prob_up - prob_down) for a stronger signal.
         prob_signal = (probs[:, 2] - probs[:, 0]).cpu().numpy()
         all_preds_conf.extend(prob_signal)
         all_actual_rets.extend(raw_rets.numpy())
